@@ -1,0 +1,27 @@
+Very basic BMX7 (v16) dissector for Wireshark.
+
+It is updated to work with Wireshark 2.6.8.
+
+To include the dissector you will need to place the dissector code on plugins/epan/bmx7 folder.
+
+1. You will need to rename top level CMakeListsCustom.txt.example to CMakeListsCustom.txt and edit it.
+
+Find:
+set(CUSTOM_PLUGIN_SRC_DIR
+#	private_plugins/foo
+# or
+#	plugins/epan/foo
+)
+
+and change it to:
+set(CUSTOM_PLUGIN_SRC_DIR
+#	private_plugins/foo
+# or
+	plugins/epan/bmx7
+)
+
+2. Recompile Wireshark by:
+cmake <source_root>
+make
+
+3. Copy bmx7.so from <build_root>/run/plugins/2.6/epan to /usr/local/lib/wireshark/plugins/2.6/epan.
