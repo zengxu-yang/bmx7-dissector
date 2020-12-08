@@ -58,10 +58,10 @@ static const value_string bmx_frame_types[] =
    { FRAME_TYPE_RP_ADV, "Response advertisement" },
    { FRAME_TYPE_DESC_REQ, "Description request" },
    { FRAME_TYPE_DESC_ADV, "Description advertisement" },
-   { FRAME_TYPE_HASH_REQ, "Hash request" },
-   { FRAME_TYPE_HASH_ADV, "Hash advertisement" },
+   { FRAME_TYPE_IID_REQ, "Internal ID request" },
+   { FRAME_TYPE_IID_ADV, "Internal ID advertisement" },
    { FRAME_TYPE_OGM_ADV, "Originator message advertisement" },
-   { FRAME_TYPE_OGM_ACK, "Originator message acknowledgment" },
+   { FRAME_TYPE_OGM_REQ, "Originator message request" },
    { FRAME_TYPE_NOP, "No operation" },
    { FRAME_TYPE_CONTENT_REQ, "Content request"},
    { 0, NULL }
@@ -145,11 +145,11 @@ static gint ett_bmx7_dev_req = -1;
 /* DEV_ADV frame */
 static gint ett_bmx7_dev_adv = -1;
 
-/* HASH_REQ frame */
-static gint ett_bmx7_hash_req = -1;
+/* IID_REQ frame */
+static gint ett_bmx7_iid_req = -1;
 
-/* HASH_ADV frame */
-static gint ett_bmx7_hash_adv = -1;
+/* IID_ADV frame */
+static gint ett_bmx7_iid_adv = -1;
 
 /* DESC_REQ frame */
 static gint ett_bmx7_desc_req = -1;
@@ -160,8 +160,8 @@ static gint ett_bmx7_desc_adv = -1;
 /* OGM_ADV frame */
 static gint ett_bmx7_ogm_adv = -1;
 
-/* OGM_ACK frame */
-static gint ett_bmx7_ogm_ack = -1;
+/* OGM_REQ frame */
+static gint ett_bmx7_ogm_req = -1;
 
 /* TLVs */
 static gint ett_bmx7_tlv_content_hash = -1;
@@ -228,7 +228,7 @@ dissect_signature_adv(tvbuff_t *tvb, proto_tree *tree, int offset, int end){
 
 //Dissects link advertisment messages
 static int
-dissect_link_adv(tvbuff_t *tvb, proto_tree *tree, int offset, int end){
+dissect_ogm_agg_sqn_adv(tvbuff_t *tvb, proto_tree *tree, int offset, int end){
   guint8 tx_dev, peer_dev;
   guint16 dev_sqn;
   guint32 peer_id;
@@ -236,25 +236,10 @@ dissect_link_adv(tvbuff_t *tvb, proto_tree *tree, int offset, int end){
   proto_item *ti;
     
   dev_sqn = tvb_get_ntohs(tvb, offset);
-  ti = proto_tree_add_item(tree, hf_bmx7_device_sequence_number, tvb, offset, 2, ENC_BIG_ENDIAN);
-  links = proto_item_add_subtree(ti, ett_bmx7_message);
+  proto_tree_add_item(tree, hf_bmx7_ogm_agg_sqn_max, tvb, offset, 2, ENC_BIG_ENDIAN);
   offset +=2;
-  int i =1;
-  while(end > offset){
-    ti = proto_tree_add_item(links, hf_bmx7_link, tvb, offset, 6, ENC_BIG_ENDIAN);
-    link_tree = proto_item_add_subtree(ti, ett_bmx7_link);
-    tx_dev = tvb_get_guint8(tvb, offset);
-    proto_tree_add_item(link_tree, hf_bmx7_transmitter_device_id, tvb, offset, 1, ENC_NA);
-    offset ++;
-    peer_dev = tvb_get_guint8(tvb, offset);
-    proto_tree_add_item(link_tree, hf_bmx7_peer_device_id, tvb, offset, 1, ENC_NA);
-    offset ++;
-    peer_id = tvb_get_ntohl(tvb, offset);
-    proto_tree_add_item(link_tree, hf_bmx7_peer_local_id, tvb, offset, 4, ENC_BIG_ENDIAN);
-    proto_item_append_text(ti, "    to 0x%x:dev%u", peer_id, peer_dev);
-    offset +=4;
-    i++;
-  }
+  proto_tree_add_item(tree, hf_bmx7_ogm_agg_sqn_size, tvb, offset, 2, ENC_BIG_ENDIAN);
+  offset +=2;
   return offset;
 }
 
@@ -333,20 +318,48 @@ dissect_hash_req(tvbuff_t *tvb, proto_tree *tree, int offset, int end){
 }
 
 static int
-dissect_hash_adv(tvbuff_t *tvb, proto_item *ti, int offset){
+dissect_iid_req(tvbuff_t *tvb, proto_item *ti, int offset, int end){
+  guint16 receiver_iid;
+  proto_tree *tree;
+  gchar *hash;
+  proto_item *ti1, *ti2;
+
+  ti1 = proto_tree_add_item(ti, hf_bmx7_iid_req_dest_nodeid, tvb, offset, -1, ENC_NA);
+  offset +=HASH_SHA224_LEN;
+  proto_item_set_len(ti1, HASH_SHA224_LEN);
+  g_print("IID req offset %d end %d\n", offset, end);
+  while(offset < end) {
+    
+    receiver_iid = tvb_get_ntohs(tvb, offset);
+    proto_tree_add_item(ti, hf_bmx7_receiveriid4x, tvb, offset, 2, ENC_BIG_ENDIAN);
+    proto_item_append_text(ti, "    from %u", receiver_iid);
+    offset +=2;
+  }
+  return offset;
+}
+
+static int
+dissect_iid_adv(tvbuff_t *tvb, proto_item *ti, int offset, int end){
   guint16 transmitter_iid;
   proto_tree *tree;
   gchar *hash;
+  proto_item *ti1, *ti2;
+  
+  while(offset < end) {
     
-  tree = proto_item_add_subtree(ti, ett_bmx7_message);
-  transmitter_iid = tvb_get_ntohs(tvb, offset);
-  proto_tree_add_item(tree, hf_bmx7_transmitteriid4x, tvb, offset, 2, ENC_BIG_ENDIAN);
-  proto_item_append_text(ti, "    from %u", transmitter_iid);
-  offset +=2;
-  hash = tvb_bytes_to_str(NULL, tvb, offset, HASH_SHA1_LEN);
-  proto_tree_add_item(tree, hf_bmx7_description_hash, tvb, offset, HASH_SHA1_LEN, ENC_BIG_ENDIAN);
-  proto_item_set_len(ti, 2 + HASH_SHA1_LEN);
-  offset += HASH_SHA1_LEN;
+    transmitter_iid = tvb_get_ntohs(tvb, offset);
+    proto_tree_add_item(ti, hf_bmx7_transmitteriid4x, tvb, offset, 2, ENC_BIG_ENDIAN);
+    proto_item_append_text(ti, "    from %u", transmitter_iid);
+    offset +=2;
+    proto_tree_add_item(ti, hf_bmx7_descsqn, tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset +=4;
+    ti1 = proto_tree_add_item(ti, hf_bmx7_chainogm, tvb, offset, -1, ENC_NA);
+    offset +=SIG112_LEN;
+    proto_item_set_len(ti1, SIG112_LEN);
+    ti2 = proto_tree_add_item(ti, hf_bmx7_iid_adv_nodeid, tvb, offset, -1, ENC_NA);
+    offset +=HASH_SHA224_LEN;
+    proto_item_set_len(ti2, HASH_SHA224_LEN);
+  }
   return offset;
 }
 
@@ -457,7 +470,7 @@ dissect_bmx7_tlv(tvbuff_t *tvb, proto_item *tlv_item, int offset){
     offset++;
     proto_tree_add_item(tlv, hf_bmx7_tlv_version_bootsqn, tvb, offset, 4, ENC_BIG_ENDIAN);
     offset+=4;
-    proto_tree_add_item(tlv, hf_bmx7_tlv_version_descsqn, tvb, offset, 4, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tlv, hf_bmx7_descsqn, tvb, offset, 4, ENC_BIG_ENDIAN);
     offset+=4;
     proto_tree_add_item(tlv, hf_bmx7_tlv_version_ogm_sqn_range, tvb, offset, 2, ENC_BIG_ENDIAN);
     offset+=2;
@@ -603,65 +616,150 @@ dissect_desc_adv(tvbuff_t *tvb, proto_item *ti, int offset, int length){
 static int
 dissect_ogm_adv(tvbuff_t *tvb, proto_tree *tree, int offset, int end){
   AGGREG_SQN_T aggr_sqn;
-  guint8 dest;
   OGM_MIX_T mix;
   OGM_SQN_T ogm_sqn;
   IID_T absolute, neigh;
   guint16 ogm_offset;
-  int i;
+  guint8 more;
+  int i, bit_offset;
   proto_tree *ogm;
-  proto_item *ti;
-    
-  aggr_sqn = tvb_get_guint8(tvb, offset);
-  proto_tree_add_item(tree, hf_bmx7_aggregation_sequence_number, tvb, offset, 1, ENC_NA);
-  offset++;
-  dest = tvb_get_guint8(tvb, offset);
-  proto_tree_add_item(tree, hf_bmx7_ogm_destination_array, tvb, offset, 1, ENC_NA);
-  offset++;
-  //Skip the destination bytes
-  offset += dest;
+  proto_item *ti1, *ti2;
+
+  aggr_sqn = tvb_get_guint16(tvb, offset, ENC_BIG_ENDIAN);
+  proto_tree_add_item(tree, hf_bmx7_aggregation_sequence_number, tvb, offset, 2, ENC_BIG_ENDIAN);
+  offset+=2;
   i=1;
   neigh=0;
-  while(offset<end){
-    ti = proto_tree_add_item(tree, hf_bmx7_ogm, tvb, offset, 4, ENC_BIG_ENDIAN);
-    ogm = proto_item_add_subtree(ti, ett_bmx7_message);
-    mix = tvb_get_ntohs(tvb, offset);
-    proto_tree_add_item(ogm, hf_bmx7_mix, tvb, offset, 2, ENC_BIG_ENDIAN);
-    offset += 2;
-    ogm_offset = ((mix >> OGM_IIDOFFST_BIT_POS) & OGM_IIDOFFST_MASK);
-    if(ogm_offset == OGM_IID_RSVD_JUMP){
-      absolute = tvb_get_ntohs(tvb, offset);
-      proto_tree_add_item(tree, hf_bmx7_iid, tvb, offset, 2, ENC_BIG_ENDIAN);
-      offset += 2;
-      neigh = absolute;
-    } else{
-      ogm_sqn = tvb_get_ntohs(tvb, offset);
-      proto_tree_add_item(tree, hf_bmx7_ogm_sequence_number, tvb, offset, 2, ENC_BIG_ENDIAN);
-      offset +=2;
-      neigh += ogm_offset;
+  while(offset < end) {
+    ti1 = proto_tree_add_item(tree, hf_bmx7_chainogm, tvb, offset, -1, ENC_NA);
+    proto_item_set_len(ti1, 14);
+    offset+=14;
+    ti2 = proto_tree_add_item(tree, hf_bmx7_ogm_adv_metric, tvb, offset, 4, ENC_BIG_ENDIAN);
+    ogm = proto_item_add_subtree(ti2, ett_bmx7_message);
+    more = (tvb_get_guint8(tvb, offset) & 0x80) >> 7;
+    bit_offset=offset*8;
+    proto_tree_add_bits_item(ogm, hf_bmx7_ogm_adv_more, tvb, bit_offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_bits_item(ogm, hf_bmx7_ogm_adv_transmitteriid4x, tvb, bit_offset+1, 14, ENC_BIG_ENDIAN);
+    proto_tree_add_bits_item(ogm, hf_bmx7_ogm_adv_hopcount, tvb, bit_offset+15, 6, ENC_BIG_ENDIAN);
+    proto_tree_add_bits_item(ogm, hf_bmx7_ogm_adv_metric_exp, tvb, bit_offset+21, 5, ENC_BIG_ENDIAN);
+    proto_tree_add_bits_item(ogm, hf_bmx7_ogm_adv_metric_mantissa, tvb, bit_offset+26, 6, ENC_BIG_ENDIAN);
+    offset+=4;
+    while( more ) {
+      ti2 = proto_tree_add_item(tree, hf_bmx7_ogm_adv_metric_t0, tvb, offset, 2, ENC_BIG_ENDIAN);
+      ogm = proto_item_add_subtree(ti2, ett_bmx7_message);
+      more = (tvb_get_guint8(tvb, offset) & 0x80) >> 7;
+      bit_offset=offset*8;
+      proto_tree_add_bits_item(ogm, hf_bmx7_ogm_adv_more_t0, tvb, bit_offset, 1, ENC_BIG_ENDIAN);
+      proto_tree_add_bits_item(ogm, hf_bmx7_ogm_adv_type_t0, tvb, bit_offset+1, 3, ENC_BIG_ENDIAN);
+      proto_tree_add_bits_item(ogm, hf_bmx7_ogm_adv_directional_t0, tvb, bit_offset+4, 1, ENC_BIG_ENDIAN);
+      proto_tree_add_bits_item(ogm, hf_bmx7_ogm_adv_metric_exp_t0, tvb, bit_offset+5, 5, ENC_BIG_ENDIAN);
+      proto_tree_add_bits_item(ogm, hf_bmx7_ogm_adv_metric_mantissa_t0, tvb, bit_offset+10, 6, ENC_BIG_ENDIAN);
+      offset+=2;
+      proto_tree_add_item(tree, hf_bmx7_ogm_adv_channel_t0, tvb, offset, 1, ENC_NA);
+      offset++;
     }
-    i++;
   }
   return offset;
 }
 
 //TODO add everywhere so that new trees are created
 static int
-dissect_ogm_ack(tvbuff_t *tvb, proto_tree *tree, int offset){
+dissect_ogm_req(tvbuff_t *tvb, proto_tree *tree, int offset, int end){
   OGM_DEST_T dest;
   AGGREG_SQN_T sqn;
+  proto_item *ti;
     
   //OGM destination:
-  dest = tvb_get_guint8(tvb, offset);
-  proto_tree_add_item(tree, hf_bmx7_destination, tvb, offset, 1, ENC_NA);
-  offset++;
+  ti = proto_tree_add_item(tree, hf_bmx7_destination, tvb, offset, -1, ENC_NA);
+  offset+=HASH_SHA224_LEN;
+  proto_item_set_len(ti, HASH_SHA224_LEN);
     
   //Aggregation sqn being ack'ed:
-  sqn = tvb_get_guint8(tvb, offset);
-  proto_tree_add_item(tree, hf_bmx7_aggregation_sequence_number, tvb, offset, 1, ENC_NA);
-  offset++;
-    
+  while(offset < end) {
+    sqn = tvb_get_guint8(tvb, offset);
+    proto_tree_add_item(tree, hf_bmx7_aggregation_sequence_number, tvb, offset, 2, ENC_BIG_ENDIAN);
+    offset+=2;
+  }
   return offset;
+}
+
+//Dissects a description req message
+static int
+dissect_desc_req(tvbuff_t *tvb, proto_tree *tree, int offset, int end){
+
+  guint32 dest_id;
+  gchar* hash;
+  proto_item *ti1, *ti2;
+  
+  ti1 = proto_tree_add_item(tree, hf_bmx7_desc_dest_khash, tvb, offset, -1, ENC_NA);
+  proto_item_set_len(ti1, 28);
+  offset+=28;
+  while (offset < end){
+    ti2 = proto_tree_add_item(tree, hf_bmx7_desc_khash, tvb, offset, -1, ENC_NA);
+    proto_item_set_len(ti2, 28);
+    offset+=28;
+  }
+  return offset;
+}
+
+//Dissects a content req message
+static int
+dissect_content_req(tvbuff_t *tvb, proto_tree *tree, int offset, int end){
+
+  guint32 dest_id;
+  gchar* hash;
+  proto_item *ti1, *ti2;
+  
+  ti1 = proto_tree_add_item(tree, hf_bmx7_content_dest_khash, tvb, offset, -1, ENC_NA);
+  proto_item_set_len(ti1, 28);
+  offset+=28;
+  while (offset < end){
+    ti2 = proto_tree_add_item(tree, hf_bmx7_content_dest_chash, tvb, offset, -1, ENC_NA);
+    proto_item_set_len(ti2, 28);
+    offset+=28;
+  }
+  return offset;
+}
+
+//Dissects a content adv message
+static int
+dissect_content_adv(tvbuff_t *tvb, proto_tree *tree, int offset, int end){
+
+  guint32 dest_id;
+  gchar* hash;
+  int bit_offset;
+  proto_item *ti;
+
+  proto_tree_add_item(tree, hf_bmx7_content_adv_hdr, tvb, offset, 1, ENC_NA);
+  bit_offset = offset * 8;
+  proto_tree_add_bits_item(tree, hf_bmx7_content_adv_max_nesting, tvb, bit_offset+5, 2, ENC_BIG_ENDIAN);
+  proto_tree_add_bits_item(tree, hf_bmx7_content_adv_gzip, tvb, bit_offset+7, 1, ENC_BIG_ENDIAN);
+  offset++;
+  
+  ti = proto_tree_add_item(tree, hf_bmx7_content_adv_content, tvb, offset, -1, ENC_NA);
+  proto_item_set_len(ti, end-offset);
+  return end;
+}
+
+//Dissects a hello reply dhash message
+static int
+dissect_hello_reply_dhash(tvbuff_t *tvb, proto_tree *tree, int offset, int end){
+
+  guint32 dest_id;
+  gchar* hash;
+  proto_item *ti;
+
+  ti = proto_tree_add_item(tree, hf_bmx7_hello_reply_dhash_dest_dhash, tvb, offset, -1, ENC_NA);
+  proto_item_set_len(ti, HASH_SHA224_LEN);
+  offset+=HASH_SHA224_LEN;
+
+  while(offset < end) {
+    proto_tree_add_item(tree, hf_bmx7_hello_reply_dhash_rxlq, tvb, offset, 1, ENC_NA);
+    offset++;
+    proto_tree_add_item(tree, hf_bmx7_hello_reply_dhash_receiverdevidx, tvb, offset, 1, ENC_NA);
+    offset++;
+  }
+  return end;
 }
 
 static int
@@ -719,17 +817,23 @@ dissect_bmx7_frame(tvbuff_t *tvb, proto_tree *bmx_tree, int version,
       offset = dissect_hello_adv(tvb, message_item, offset, version);
     }
     break;
+  case FRAME_TYPE_HELLO_REPLY_DHASH:
+    frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_content_adv);
+    offset = dissect_frame_header(tvb, frame_tree, offset, &length);
+    proto_item_set_len(frame_item, length);
+    offset = dissect_hello_reply_dhash(tvb, frame_tree, offset, initial+length);
+    break;
   case FRAME_TYPE_CONTENT_ADV:
     frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_content_adv);
     offset = dissect_frame_header(tvb, frame_tree, offset, &length);
     proto_item_set_len(frame_item, length);
-    //    offset = dissect_signature_adv(tvb, frame_tree, offset, initial+length);
+    offset = dissect_content_adv(tvb, frame_tree, offset, initial+length);
     break;
   case FRAME_TYPE_CONTENT_REQ:
     frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_content_req);
     offset = dissect_frame_header(tvb, frame_tree, offset, &length);
     proto_item_set_len(frame_item, length);
-    //offset = dissect_signature_adv(tvb, frame_tree, offset, initial+length);
+    offset = dissect_content_req(tvb, frame_tree, offset, initial+length);
     break;
   case FRAME_TYPE_SIGNATURE_ADV:
     frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_signature_adv);
@@ -742,7 +846,7 @@ dissect_bmx7_frame(tvbuff_t *tvb, proto_tree *bmx_tree, int version,
     offset = dissect_frame_header(tvb, frame_tree, offset, &length);
     proto_item_set_len(frame_item, length);
     //Link advertisments are decoded at the same time all of them.
-    offset = dissect_link_adv(tvb, frame_tree, offset, initial+length);
+    offset = dissect_ogm_agg_sqn_adv(tvb, frame_tree, offset, initial+length);
     break;
   case FRAME_TYPE_DEV_REQ:
     frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_dev_req);
@@ -759,33 +863,27 @@ dissect_bmx7_frame(tvbuff_t *tvb, proto_tree *bmx_tree, int version,
     //Dev advertisments are decoded all at the same time:
     dissect_dev_adv(tvb, frame_tree, offset, initial+length);
     break;
-  case FRAME_TYPE_HASH_REQ:
-    frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_hash_req);
+  case FRAME_TYPE_IID_REQ:
+    frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_iid_req);
     offset = dissect_frame_header(tvb, frame_tree, offset, &length);
     proto_item_set_len(frame_item, length);
-    offset = dissect_hash_req(tvb, frame_tree, offset, initial+length);
+    offset = dissect_iid_req(tvb, frame_tree, offset, initial+length);
     break;
-  case FRAME_TYPE_HASH_ADV:
-    frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_hash_adv);
+  case FRAME_TYPE_IID_ADV:
+    frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_iid_adv);
     offset = dissect_frame_header(tvb, frame_tree, offset, &length);
     proto_item_set_len(frame_item, length);
-    i = 1;
-    while ( offset - initial < length) {
-      message_item = proto_tree_add_item(frame_tree, hf_bmx7_hash, tvb, offset, -1, ENC_BIG_ENDIAN);
-      offset = dissect_hash_adv(tvb, message_item, offset);
-      i++;
-    }
+    offset = dissect_iid_adv(tvb, frame_item, offset, initial+length);
     break;
   case FRAME_TYPE_DESC_REQ:
     frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_desc_req);
     offset = dissect_frame_header(tvb, frame_tree, offset, &length);
     proto_item_set_len(frame_item, length);
-    offset = dissect_hash_req(tvb, frame_tree, offset, initial+length);
+    offset = dissect_desc_req(tvb, frame_tree, offset, initial+length);
     break;
   case FRAME_TYPE_DESC_ADV:
     frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_desc_req);
     offset = dissect_frame_header(tvb, frame_tree, offset, &length);
-    my_print("The length is %d\n", length);
     proto_item_set_len(frame_item, length);
     message_item = proto_tree_add_item(frame_tree, hf_bmx7_description, tvb, offset, -1, ENC_BIG_ENDIAN);
     offset = dissect_desc_adv(tvb, message_item, offset, initial+length);
@@ -794,15 +892,13 @@ dissect_bmx7_frame(tvbuff_t *tvb, proto_tree *bmx_tree, int version,
     frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_ogm_adv);
     offset = dissect_frame_header(tvb, frame_tree, offset, &length);
     proto_item_set_len(frame_item, length);
-    offset = dissect_ogm_adv(tvb, frame_tree, offset, length);
+    offset = dissect_ogm_adv(tvb, frame_tree, offset, initial+length);
     break;
-  case FRAME_TYPE_OGM_ACK:
-    frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_ogm_ack);
+  case FRAME_TYPE_OGM_REQ:
+    frame_tree = proto_item_add_subtree(frame_item, ett_bmx7_ogm_req);
     offset = dissect_frame_header(tvb, frame_tree, offset, &length);
     proto_item_set_len(frame_item, length);
-    while ( offset - initial < length) {
-      offset = dissect_ogm_ack(tvb, frame_tree, offset);
-    }
+    offset = dissect_ogm_req(tvb, frame_tree, offset, initial+length);
     break;
   default:
     //TODO new ett
@@ -923,12 +1019,12 @@ proto_register_bmx7(void)
      &ett_bmx7_link,
      &ett_bmx7_dev_req,
      &ett_bmx7_dev_adv,
-     &ett_bmx7_hash_req,
-     &ett_bmx7_hash_adv,
+     &ett_bmx7_iid_req,
+     &ett_bmx7_iid_adv,
      &ett_bmx7_desc_req,
      &ett_bmx7_desc_adv,
      &ett_bmx7_ogm_adv,
-     &ett_bmx7_ogm_ack,
+     &ett_bmx7_ogm_req,
      &ett_bmx7_tlv_header,
      &ett_bmx7_tlv_content_hash,
      &ett_bmx7_tlv_dsc_signature,

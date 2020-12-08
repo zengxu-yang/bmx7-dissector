@@ -44,12 +44,13 @@ typedef uint8_t  FRAME_TYPE_T;
 #define FRAME_TYPE_HELLO_ADV    12
 #define FRAME_TYPE_HELLO_REPLY_DHASH	13
 #define FRAME_TYPE_DESC_REQ    14
-#define FRAME_TYPE_HASH_REQ    18
-#define FRAME_TYPE_HASH_ADV    19
+#define FRAME_TYPE_IID_ADV    19
 #define FRAME_TYPE_OGM_ADV     21
-#define FRAME_TYPE_OGM_ACK     23
-#define FRAME_TYPE_NOP         24
+#define FRAME_TYPE_OGM_REQ     27
+#define FRAME_TYPE_IID_REQ    28
+#define FRAME_TYPE_DESC_REQ	29
 #define FRAME_TYPE_CONTENT_REQ	30
+#define FRAME_TYPE_NOP         31
 #define FRAME_TYPE_MAX         (FRAME_TYPE_ARRSZ-1)
 #define FRAME_TYPE_PROCESS_ALL    (255)
 #define FRAME_TYPE_PROCESS_NONE   (254)
@@ -88,7 +89,7 @@ typedef uint8_t  FRAME_TYPE_T;
 #define MSG_DESC_ADV_SZ	HASH_SHA1_LEN+DESCRIPTION0_ID_NAME_LEN+18
 
 /** OGM_ADV and ACK Frames **/
-typedef guint8 AGGREG_SQN_T;
+typedef guint16 AGGREG_SQN_T;
 typedef guint16 OGM_MIX_T;
 typedef guint16 OGM_SQN_T;
 typedef guint16 IID_T;
