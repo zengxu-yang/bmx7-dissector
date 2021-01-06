@@ -216,14 +216,14 @@ dissect_signature_adv(tvbuff_t *tvb, proto_tree *tree, int offset, int end){
   dest_id = tvb_get_ntohl(tvb, offset);
   proto_tree_add_item(tree, hf_bmx7_dev_idx, tvb, offset, 1, ENC_NA);
   offset++;
-  if (offset < end){
+  while (offset < end){
     proto_tree_add_item(tree, hf_bmx7_signature_type, tvb, offset, 1, ENC_NA);
     offset++;
     hash = tvb_bytes_to_str(NULL, tvb, offset, SIG112_LEN);
     proto_tree_add_string(tree, hf_bmx7_signature, tvb, offset, SIG112_LEN, hash);
-    return offset+14;
-  }else
-    return offset;
+    offset +=SIG112_LEN;
+  }
+  return offset;
 }
 
 //Dissects link advertisment messages
