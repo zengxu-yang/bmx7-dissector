@@ -76,6 +76,8 @@ static const value_string bmx_tlv_types[] =
    //   { BMX_DSC_TLV_UHNA4, "HNA4 TLV"},
    { BMX_DSC_TLV_RSA_LINK_PUBKEY, "RSA Link Pubkey"},
    { BMX_DSC_TLV_DHM_LINK_PUBKEY, "DHM Link Pubkey"},
+   { BMX_DSC_TLV_SUPPORTS, "Supports"},
+   { BMX_DSC_TLV_TRUSTS, "Trusts"},
    { BMX_DSC_TLV_METRIC, "Metric"},
    { BMX_DSC_TLV_LLIP, "Link-local Address"},
    { BMX_DSC_TLV_HNA6, "HNA6 TLV"},
@@ -169,6 +171,8 @@ static gint ett_bmx7_tlv_dsc_signature = -1;
 static gint ett_bmx7_tlv_version = -1;
 static gint ett_bmx7_tlv_rsa_link_pubkey = -1;
 static gint ett_bmx7_tlv_dhm_link_pubkey = -1;
+static gint ett_bmx7_tlv_supports = -1;
+static gint ett_bmx7_tlv_trusts = -1;
 static gint ett_bmx7_tlv_metric = -1;
 static gint ett_bmx7_tlv_llip = -1;
 static gint ett_bmx7_tlv_uhna4 = -1;
@@ -390,6 +394,12 @@ dissect_bmx7_tlv(tvbuff_t *tvb, proto_item *tlv_item, int offset){
     break;
   case BMX_DSC_TLV_DHM_LINK_PUBKEY:
     tlv = proto_item_add_subtree(tlv_item, ett_bmx7_tlv_dhm_link_pubkey);
+    break;
+  case BMX_DSC_TLV_SUPPORTS:
+    tlv = proto_item_add_subtree(tlv_item, ett_bmx7_tlv_supports);
+    break;
+  case BMX_DSC_TLV_TRUSTS:
+    tlv = proto_item_add_subtree(tlv_item, ett_bmx7_tlv_trusts);
     break;
   case BMX_DSC_TLV_METRIC:
     tlv = proto_item_add_subtree(tlv_item, ett_bmx7_tlv_metric);
