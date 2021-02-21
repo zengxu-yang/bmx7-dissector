@@ -113,14 +113,14 @@ typedef guint8 OGM_DEST_T;
 #define FM8_MANTISSA_MASK      ((1<<FM8_MANTISSA_BIT_SIZE)-1)
 #define FM8_MANTISSA_MIN       (1)
 struct float_u8 {
-  union {
+	union {
 
-    struct {
-      unsigned int exp_fmu8 : FM8_EXPONENT_BIT_SIZE;
-      unsigned int mantissa_fmu8 : FM8_MANTISSA_BIT_SIZE;
-    } __attribute__((packed)) f;
-    guint8 u8;
-  } val;
+		struct {
+			unsigned int exp_fmu8 : FM8_EXPONENT_BIT_SIZE;
+			unsigned int mantissa_fmu8 : FM8_MANTISSA_BIT_SIZE;
+		} __attribute__((packed)) f;
+		guint8 u8;
+	} val;
 };
 
 typedef struct float_u8 FMETRIC_U8_T;
